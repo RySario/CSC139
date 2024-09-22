@@ -2,9 +2,9 @@
 CSC139 
 Fall 2024
 First Assignment
-Last Name, First Name
-Section #
-OSs Tested on: such as Linux, Mac, etc.
+Sario, Ryan
+Section 01
+OSs Tested on: Mac
 */
 
 #include <stdio.h>
@@ -59,8 +59,21 @@ int main(int argc, char* argv[])
 	itemCnt = atoi(argv[2]);
 	randSeed = atoi(argv[3]);
 	
-	// Write code to check the validity of the command-line arguments
+	// Validate bufSize
+        if(bufSize < 2 || bufSize > 480) {
+                printf("Invalid buffer size. Must be between 2 and 480.\n");
+                exit(1);
+         }
 
+         // Validate itemCnt
+        if(itemCnt <= 0) {
+                printf("Invalid item count. Must be greater than 0.\n");
+                exit(1);
+         }
+
+        // Seed the random number generator
+        srand(randSeed);
+        
         // Function that creates a shared memory segment and initializes its header
         InitShm(bufSize, itemCnt);        
 
@@ -95,16 +108,30 @@ void InitShm(int bufSize, int itemCnt)
 {
     int in = 0;
     int out = 0;
-    const char *name = "OS_HW1_yourName"; // Name of shared memory object to be passed to shm_open
+    const char *name = "OS_HW1_ryanSario"; // Name of shared memory object to be passed to shm_open
 
-     // Write code here to create a shared memory block and map it to gShmPtr  
-     // Use the above name.
-     // **Extremely Important: map the shared memory block for both reading and writing 
-     // Use PROT_READ | PROT_WRITE
-	
-    // Write code here to set the values of the four integers in the header
-    // Just call the functions provided below, like this
-    SetBufSize(bufSize); 	
+     // Create shared memory block
+    int shm_fd = shm_open(name, O_CREAT | O_RDWR, 0666); // Create or open shared memory
+    if (shm_fd == -1) {
+        printf("Failed to create shared memory block.\n");
+        exit(1);
+    }
+
+    // Set size of shared memory block to 4KB
+    ftruncate(shm_fd, SHM_SIZE);
+
+    // Map shared memory block into the process's address space with both read and write permissions
+    gShmPtr = mmap(0, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
+    if (gShmPtr == MAP_FAILED) {
+        printf("Failed to map shared memory.\n");
+        exit(1);
+    }
+
+    // Set the values of the four integers in the header
+    SetBufSize(bufSize); 	// Set buffer size
+    SetItemCnt(itemCnt); 	// Set item count
+    SetIn(in); 			// Set initial "in" index
+    SetOut(out); 	        // Set initial "out" index	
        
 	   
 }
@@ -116,19 +143,35 @@ void Producer(int bufSize, int itemCnt, int randSeed)
         
     srand(randSeed);
 
+    in = GetIn();
+    out = GetOut();
+
     // Write code here to produce itemCnt integer values in the range specificed in the problem description
-    // Use the functions provided below to get/set the values of shared variables "in" and "out"
-    // Use the provided function WriteAtBufIndex() to write into the bounded buffer 	
-    // Use the provided function GetRand() to generate a random number in the specified range
-    // **Extremely Important: Remember to set the value of any shared variable you change locally
-    // Use the following print statement to report the production of an item:
-    // printf("Producing Item %d with value %d at Index %d\n", i, val, in);
-    // where i is the item number, val is the item value, in is its index in the bounded buffer
-    	
-	
-	
-	
-    
+    for (int i = 0; i < itemCnt; i++) {
+        
+        // Check if the buffer is full: if ((in + 1) % bufSize == out), wait until the consumer consumes an item
+        if (((in + 1) % bufSize) == out) {
+            // Buffer is full, wait for the consumer to consume at least one item
+            while (((in + 1) % bufSize) == GetOut()) {
+                // Busy waiting until there is space in the buffer
+            }
+        }
+
+        // Generate a random number between 2 and 5200
+        int val = GetRand(2, 5200);
+
+        // Write the generated item into the bounded buffer at the index "in"
+        WriteAtBufIndex(in, val);
+
+        // Report the production of the item with the appropriate print statement
+        printf("Producing Item %d with value %d at Index %d\n", i, val, in);
+
+        // Update the "in" index, wrapping around the buffer size
+        in = (in + 1) % bufSize;
+
+        // Set the updated "in" value in shared memory
+        SetIn(in);
+    }   	
      printf("Producer Completed\n");
 }
 
@@ -166,10 +209,9 @@ int GetHeaderVal(int i)
 }
 
 // Set the ith value in the header
-void SetHeaderVal(int i, int val)
-{
-       // Write the implementation
-
+void SetHeaderVal(int i, int val) {
+        void* ptr = gShmPtr + i * sizeof(int);
+        memcpy(ptr, &val, sizeof(int));
 }
 
 // Get the value of shared variable "bufSize"
@@ -208,8 +250,13 @@ void WriteAtBufIndex(int indx, int val)
 // Read the val at the given index in the bounded buffer
 int ReadAtBufIndex(int indx)
 {
-        // Write the implementation
- 
+    // Skip the four-integer header and go to the given index
+    void* ptr = gShmPtr + 4*sizeof(int) + indx*sizeof(int);
+    
+    int val;
+    memcpy(&val, ptr, sizeof(int));  // Read the value at the specified index
+    
+    return val;  // Return the value read from the buffer
 }
 
 // Get a random number in the range [x, y]
