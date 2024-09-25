@@ -86,6 +86,7 @@ int main(int argc, char* argv[])
 	}
 	else if (pid == 0) { /* child process */
 		printf("Launching Consumer \n");
+                sleep(1);
 		execlp("./consumer","consumer",NULL);
 	}
 	else { /* parent process */
