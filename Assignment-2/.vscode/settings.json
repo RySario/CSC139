@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "mtfindprodextra": "cpp",
+        "wait.h": "c",
+        "timeb.h": "c"
+    }
+}
