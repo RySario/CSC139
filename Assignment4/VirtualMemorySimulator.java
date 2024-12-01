@@ -2,7 +2,7 @@
 Ryan Sario
 CSC139-01 
 
-How to run: In terminal > navigate to assignment directory > 
+How to run: In terminal > navigate to assignment's parent directory > 
             javac Assignment4/VirtualMemorySimulator.java >
             java Assignment4.VirtualMemorySimulator
 */
